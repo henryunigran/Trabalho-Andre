@@ -1,76 +1,90 @@
-import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
+import 'package:path/path.dart';
 import '../models/contato.dart';
+import '../models/user.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper _instance = DatabaseHelper._internal();
-  static Database? _database;
 
-  factory DatabaseHelper() {
-    return _instance;
-  }
+  factory DatabaseHelper() => _instance;
 
   DatabaseHelper._internal();
 
-  Future<Database> get database async {
-    if (_database != null) return _database!;
-    _database = await _initDatabase();
-    return _database!;
+  Database? _db;
+
+  Future<Database> get db async {
+    if (_db != null) return _db!;
+    _db = await _initDb();
+    return _db!;
   }
 
-  Future<Database> _initDatabase() async {
+  Future<Database> _initDb() async {
     String path = join(await getDatabasesPath(), 'agenda.db');
     return await openDatabase(
       path,
       version: 1,
-      onCreate: _onCreate,
+      onCreate: (db, version) async {
+        await db.execute('''
+          CREATE TABLE contatos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome TEXT,
+            telefone TEXT,
+            email TEXT
+          )
+        ''');
+
+        await db.execute('''
+          CREATE TABLE users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT,
+            password TEXT
+          )
+        ''');
+      },
     );
   }
 
-  Future<void> _onCreate(Database db, int version) async {
-    await db.execute('''
-      CREATE TABLE contatos(
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        nome TEXT NOT NULL,
-        telefone TEXT NOT NULL,
-        email TEXT NOT NULL
-      )
-    ''');
+  Future<int> addContato(Contato contato) async {
+    Database dbClient = await db;
+    return await dbClient.insert('contatos', contato.toMap());
+  }
+
+  Future<int> updateContato(Contato contato) async {
+    Database dbClient = await db;
+    return await dbClient.update('contatos', contato.toMap(),
+        where: 'id = ?', whereArgs: [contato.id]);
+  }
+
+  Future<int> deleteContato(int id) async {
+    Database dbClient = await db;
+    return await dbClient.delete('contatos', where: 'id = ?', whereArgs: [id]);
   }
 
   Future<List<Contato>> getContatos() async {
-    final db = await database;
-    final List<Map<String, dynamic>> maps = await db.query('contatos');
+    Database dbClient = await db;
+    final List<Map<String, dynamic>> maps = await dbClient.query('contatos');
     return List.generate(maps.length, (i) {
       return Contato.fromMap(maps[i]);
     });
   }
 
-  Future<void> addContato(Contato contato) async {
-    final db = await database;
-    await db.insert(
-      'contatos',
-      contato.toMap(),
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
+  Future<int> register(User user) async {
+    Database dbClient = await db;
+    return await dbClient.insert('users', user.toMap());
   }
 
-  Future<void> updateContato(Contato contato) async {
-    final db = await database;
-    await db.update(
-      'contatos',
-      contato.toMap(),
-      where: 'id = ?',
-      whereArgs: [contato.id],
+  Future<User?> login(String username, String password) async {
+    Database dbClient = await db;
+    final List<Map<String, dynamic>> maps = await dbClient.query(
+      'users',
+      where: 'username = ? AND password = ?',
+      whereArgs: [username, password],
     );
-  }
 
-  Future<void> deleteContato(int id) async {
-    final db = await database;
-    await db.delete(
-      'contatos',
-      where: 'id = ?',
-      whereArgs: [id],
-    );
+    if (maps.isNotEmpty) {
+      return User.fromMap(maps.first);
+    } else {
+      return null;
+    }
   }
 }
