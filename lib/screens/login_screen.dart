@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../models/user.dart';
 import '../services/database_helper.dart';
 import 'listagem_screen.dart';
@@ -13,6 +13,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController usernameController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
   final DatabaseHelper _dbHelper = DatabaseHelper();
+  final secureStorage = FlutterSecureStorage();
 
   @override
   Widget build(BuildContext context) {
@@ -52,8 +53,7 @@ class _LoginScreenState extends State<LoginScreen> {
     User? user = await _dbHelper.login(username, password);
 
     if (user != null) {
-      SharedPreferences prefs = await SharedPreferences.getInstance();
-      prefs.setString('username', username);
+      await secureStorage.write(key: 'username', value: username);
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => ListagemScreen()),
